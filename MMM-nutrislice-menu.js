@@ -82,48 +82,99 @@ Module.register("MMM-nutrislice-menu", {
 			wrapper.appendChild(messageElement);
 			return wrapper;
 		}
-		if (this.currWeekDataNotification) {
-			var days = [...(this.currWeekDataNotification.days || [])];
-			if (this.nextWeekDataNotification) {
-				days = [...days, ...(this.nextWeekDataNotification.days || [])];
-			}
-			const mapOfDays = this.getMapOfDays(days);
-			if ((mapOfDays || []).length > 0) {
-				var tableElement = document.createElement("table");
-				tableElement.className = this.config.tableClass;
-				var tableRow = document.createElement("tr");
-				mapOfDays.forEach(function (day) {
-					var tableCell = document.createElement("td");
-					var dayItem = document.createElement("u");
-					if (day.activityDay) {
-						dayItem.innerHTML = day.dayOfWeek + "-" + day.activityDay;
-					} else {
-						dayItem.innerHTML = day.dayOfWeek;
-					}
-					tableCell.appendChild(dayItem);
-					tableCell.appendChild(document.createElement("br"));
-					var itemCount = 0;
-					day.foodList.forEach(function (item) {
-						if (itemCount < itemLimit || itemLimit == 0) {
-							var foodItem = document.createElement("span");
-							foodItem.innerHTML = item;
-							tableCell.appendChild(foodItem);
-							tableCell.appendChild(document.createElement("br"));
-							itemCount++;
-						}
-					});
-					tableRow.appendChild(tableCell);
-				});
-				tableElement.appendChild(tableRow);
-				wrapper.appendChild(tableElement);
-			} else {
-				messageElement.innerHTML = "No data";
-				wrapper.appendChild(messageElement);
-				return wrapper;
-			}
+		var days = [...(this.currWeekDataNotification.days || [])];
+		if (this.nextWeekDataNotification) {
+			days = [...days, ...(this.nextWeekDataNotification.days || [])];
+		}
+		const mapOfDays = this.getMapOfDays(days);
+		if (mapOfDays.length === 0) {
+			messageElement.innerHTML = "No data";
+			wrapper.appendChild(messageElement);
+			return wrapper;
 		}
 
-		return wrapper;
+		var contentContainer = document.createElement("div");
+		contentContainer.className = "schoolmenu-container";
+
+		if (this.config.showCurrentDay) {
+			const now = new Date();
+			const isPastNoon = now.getHours() >= 12;
+			const targetDate = new Date();
+			if (isPastNoon) {
+				targetDate.setDate(targetDate.getDate() + 1);
+				while (targetDate.getDay() === 0 || targetDate.getDay() === 6) {
+					targetDate.setDate(targetDate.getDate() + 1);
+				}
+			}
+
+			const targetLabel = this.getWeekDay(targetDate);
+			let targetFood = mapOfDays.find(day => day.dayOfWeek === targetLabel);
+
+			if (!targetFood) {
+				const pad = n => String(n).padStart(2, '0');
+				const targetDateStr = `${targetDate.getFullYear()}-${pad(targetDate.getMonth() + 1)}-${pad(targetDate.getDate())}`;
+				const rawDay = days.find(d => d.date === targetDateStr);
+				if (rawDay) {
+					const foodList = (rawDay.menu_items || [])
+						.filter(item => item.food && item.food.name && !this.config.ignoredFoodItems.includes(item.food.name))
+						.map(item => ({
+							name: item.food.name.replace(/ *\([^)]*\) */g, "").trim(),
+							carbs: item.food.rounded_nutrition_info.g_carbs
+						}));
+					targetFood = { dayOfWeek: targetLabel, foodList };
+				}
+			}
+
+			var currentDayElement = document.createElement("div");
+			currentDayElement.className = "schoolmenu-carbsday schoolmenu-text";
+
+			var foodCarbsHeader = document.createElement("h3");
+			foodCarbsHeader.innerHTML = isPastNoon ? "Tomorrow's Carbs Count" : "Today's Carbs Count";
+			currentDayElement.appendChild(foodCarbsHeader);
+
+			if (targetFood) {
+				for (const foodItem of targetFood.foodList) {
+					var foodCarbsContainer = document.createElement("div");
+					var foodSpan = document.createElement("span");
+					foodSpan.innerHTML = foodItem.name;
+					var carbsSpan = document.createElement("span");
+					carbsSpan.innerHTML = `(${foodItem.carbs != null ? foodItem.carbs + "g" : "N/A"})`;
+					carbsSpan.style.float = "right";
+					foodCarbsContainer.appendChild(foodSpan);
+					foodCarbsContainer.appendChild(carbsSpan);
+					currentDayElement.appendChild(foodCarbsContainer);
+				}
+			}
+			contentContainer.appendChild(currentDayElement);
+		}
+
+		var tableElement = document.createElement("table");
+		tableElement.className = "schoolmenu-table";
+		for (const currDay of mapOfDays) {
+			var tableRow = document.createElement("tr");
+
+			var dayCell = document.createElement("td");
+			dayCell.className = "schoolmenu-text day";
+			dayCell.innerHTML = currDay.dayOfWeek;
+			tableRow.appendChild(dayCell);
+
+			var foodCell = document.createElement("td");
+			foodCell.className = "schoolmenu-text";
+			var itemCount = 0;
+			for (const foodItem of currDay.foodList) {
+				if (itemLimit > 0 && itemCount >= itemLimit) break;
+				var foodDiv = document.createElement("div");
+				var foodSpan = document.createElement("span");
+				foodSpan.innerHTML = foodItem.name;
+				foodDiv.appendChild(foodSpan);
+				foodCell.appendChild(foodDiv);
+				itemCount++;
+			}
+			tableRow.appendChild(foodCell);
+			tableElement.appendChild(tableRow);
+		}
+		contentContainer.appendChild(tableElement);
+		return contentContainer;
 	},
 	getWeekDay: function (dateString) {
 		let date;
