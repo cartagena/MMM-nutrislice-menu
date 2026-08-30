@@ -16,14 +16,9 @@ Module.register("MMM-nutrislice-menu", {
 		showPast: true,
 		daysToShow: 5,
 		retryLimit: 10,
-		dayText: {
-			"Day 1":"1-PE",
-			"Day 2":"2-Art & Science",
-			"Day 3":"3-PE & Henry Library",
-			"Day 4":"4-Music & Deb Library"
-		},
-		showMenuText: true,
-		weekdayShort: true
+		ignoredFoodItems: [],
+		weekdayShort: true,
+		showCurrentDay: true
 	},
 
 	menuProvider: null,
@@ -46,13 +41,10 @@ Module.register("MMM-nutrislice-menu", {
 	 */
 	scheduleUpdate: function (delay) {
 		if (this.retryCnt <= this.config.retryLimit) {
-			var nextLoad = this.config.updateInterval;
-			if (typeof delay !== "undefined" && delay >= 0) {
-				nextLoad = delay;
-			}
+			const nextLoad = (typeof delay !== "undefined" && delay >= 0) ? delay : this.config.updateInterval;
 			setTimeout(() => {
-				 this.sendSocketNotification("FETCH_CURRENT_WEEK_MENU",this.menuProvider.getMenuData(true));
-			 }, nextLoad);
+				this.sendSocketNotification("FETCH_CURRENT_WEEK_MENU", this.menuProvider.getMenuData(true));
+			}, nextLoad);
 		} else {
 			this.updateDom();
 		}
@@ -85,15 +77,15 @@ Module.register("MMM-nutrislice-menu", {
 			wrapper.appendChild(messageElement);
 			return wrapper;
 		}
-		if (!this.dataNotification) {
+		if (!this.currWeekDataNotification) {
 			messageElement.innerHTML = "No data";
 			wrapper.appendChild(messageElement);
 			return wrapper;
 		}
-		if (this.dataNotification) {
-			var days = [...(this.dataNotification.days || [])];
-			if (this.dataNotification2) {
-				days = [...days, ...(this.dataNotification2.days || [])];
+		if (this.currWeekDataNotification) {
+			var days = [...(this.currWeekDataNotification.days || [])];
+			if (this.nextWeekDataNotification) {
+				days = [...days, ...(this.nextWeekDataNotification.days || [])];
 			}
 			const mapOfDays = this.getMapOfDays(days);
 			if ((mapOfDays || []).length > 0) {
@@ -134,43 +126,39 @@ Module.register("MMM-nutrislice-menu", {
 		return wrapper;
 	},
 	getWeekDay: function (dateString) {
-		const date = new Date(dateString);
-		if (this.config.weekdayShort) {
-			var weekday = this.translate("WEEKDAYS_SHORT");
-			return weekday[date.getDay()];
+		let date;
+		if (dateString instanceof Date) {
+			date = dateString;
 		} else {
-			var weekday = this.translate("WEEKDAYS_LONG");
-			return weekday[date.getDay()];
+			const parts = dateString.split('-');
+			date = new Date(parts[0], parts[1] - 1, parts[2]);
 		}
+		const weekday = this.translate(this.config.weekdayShort ? "WEEKDAYS_SHORT" : "WEEKDAYS_LONG");
+		return weekday[(date.getDay() + 6) % 7];
 	},
 	getMapOfDays: function (days) {
 		const mapOfDays = [];
-
-		today = new Date();
+		const showPast = this.config.showPast;
+		const today = new Date();
 		today.setDate(today.getDate() - 1);
-		var showPast = this.config.showPast;
-		for (key in Object.keys(days)) {
-			var day = days[key];
-			var date = new Date(day.date);
-			if (day && day.date && (day.menu_items || []).length && (date >= today || showPast)) {
-				var listOfFood = [];
-				var dayObj = {dayOfWeek: this.getWeekDay(days[key].date)};
-				for (itemKey in Object.keys(day.menu_items)) {
-					var item = day.menu_items[itemKey];
-					if (item.text) {
-						if (item.text in this.config.dayText) {
-							dayObj["activityDay"] = this.config.dayText[item.text];
-						} else if (this.config.showMenuText) {
-							listOfFood.push(item.text);
-						}
-					}
-					if (item.food && item.food.name) {
-						listOfFood.push(item.food.name);
+
+		for (const day of days) {
+			const [y, m, d] = day.date.split('-').map(Number);
+			const currDate = new Date(y, m - 1, d);
+			const dayOfWeek = currDate.getDay();
+			if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+
+			if (day && day.date && (day.menu_items || []).length && (currDate >= today || showPast)) {
+				const listOfFood = [];
+				for (const item of day.menu_items) {
+					if (item.food && item.food.name &&
+						!this.config.ignoredFoodItems.includes(item.food.name)) {
+						const sanitizedName = item.food.name.replace(/ *\([^)]*\) */g, "").trim();
+						listOfFood.push({ name: sanitizedName, carbs: item.food.rounded_nutrition_info.g_carbs });
 					}
 				}
-				dayObj["foodList"] = listOfFood;
-				mapOfDays.push(dayObj);
-				if (Object.keys(mapOfDays).length >= this.config.daysToShow) {
+				mapOfDays.push({ dayOfWeek: this.getWeekDay(day.date), foodList: listOfFood });
+				if (mapOfDays.length >= this.config.daysToShow) {
 					break;
 				}
 			}
@@ -197,11 +185,11 @@ Module.register("MMM-nutrislice-menu", {
 
 	socketNotificationReceived: function (notification, payload) {
 		if (notification === "CURRENT_WEEK_MENU") {
-			this.dataNotification = payload;
+			this.currWeekDataNotification = payload;
 			this.retryCnt = 0;
 			this.sendSocketNotification("FETCH_NEXT_WEEK_MENU", this.menuProvider.getMenuData(false));
 		} else if (notification === "NEXT_WEEK_MENU") {
-			this.dataNotification2 = payload;
+			this.nextWeekDataNotification = payload;
 			this.retryCnt = 0;
 			this.updateDom();
 			this.scheduleUpdate();
