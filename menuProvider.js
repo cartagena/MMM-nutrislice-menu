@@ -53,7 +53,7 @@ const MenuProvider = Class.extend({
 		return endpoint;
 	},
 	getMenuData: function (currentWeek) {
-		
+
 		// the data if load
 		// send endpoint back to send notification to helper
 		const currentDate = new Date();

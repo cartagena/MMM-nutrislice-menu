@@ -31,23 +31,11 @@ Module.register("MMM-nutrislice-menu", {
 	requiresVersion: "2.1.0", // Required version of MagicMirror
 	start: function () {
 		Log.info("Starting module: " + this.name);
-		var dataNotification = null;
-		var dataNotification2 = null;
-
-		//Flag for check if module is loaded
 		this.loaded = false;
 		this.retryCnt = 0;
-		
-
-		//start menuProvider
 		this.menuProvider = MenuProvider.initialize(this);
 		this.menuProvider.start();
-
-		if (this.loaded === false) {
-			this.updateDom(this.config.animationSpeed);
-		}
 		this.loaded = true;
-
 		this.scheduleUpdate(1);
 	},
 	/* scheduleUpdate()
@@ -66,7 +54,7 @@ Module.register("MMM-nutrislice-menu", {
 				 this.sendSocketNotification("FETCH_CURRENT_WEEK_MENU",this.menuProvider.getMenuData(true));
 			 }, nextLoad);
 		} else {
-			updateDom()
+			this.updateDom();
 		}
 	},
 	getDom: function () {
@@ -102,23 +90,12 @@ Module.register("MMM-nutrislice-menu", {
 			wrapper.appendChild(messageElement);
 			return wrapper;
 		}
-		// If this.dataNotification is not empty
 		if (this.dataNotification) {
-			console.log("days1: ", this.dataNotification.days);
 			var days = [...(this.dataNotification.days || [])];
-			//console.log(days);
-			//Format the data to the screen
 			if (this.dataNotification2) {
-				console.log("days2: ", this.dataNotification2.days);
-				console.log("week 2 has data");
-				days = [
-					...days,
-					...(this.dataNotification2.days || [])
-				];
-				console.log("concat days: ", days);
+				days = [...days, ...(this.dataNotification2.days || [])];
 			}
 			const mapOfDays = this.getMapOfDays(days);
-			console.log("mapOfDays" , mapOfDays);
 			if ((mapOfDays || []).length > 0) {
 				var tableElement = document.createElement("table");
 				tableElement.className = this.config.tableClass;
@@ -126,7 +103,7 @@ Module.register("MMM-nutrislice-menu", {
 				mapOfDays.forEach(function (day) {
 					var tableCell = document.createElement("td");
 					var dayItem = document.createElement("u");
-					if (day.activityDay){
+					if (day.activityDay) {
 						dayItem.innerHTML = day.dayOfWeek + "-" + day.activityDay;
 					} else {
 						dayItem.innerHTML = day.dayOfWeek;
@@ -142,52 +119,29 @@ Module.register("MMM-nutrislice-menu", {
 							tableCell.appendChild(document.createElement("br"));
 							itemCount++;
 						}
-					})
+					});
 					tableRow.appendChild(tableCell);
-				})
+				});
 				tableElement.appendChild(tableRow);
 				wrapper.appendChild(tableElement);
-				//end Format response to screen
-			}
-			else {
-				//API returned days but they have no food items to display
-				console.log("API returned days but they have no food items to display")
+			} else {
 				messageElement.innerHTML = "No data";
 				wrapper.appendChild(messageElement);
 				return wrapper;
 			}
 		}
 
-
-		var wrapperDataNotification = document.createElement("div");
-		// translations
-		wrapperDataNotification.innerHTML = this.translate("UPDATE") + " : " + new Date();
-		//wrapperDataNotification.innerHTML =  "Data" + ": " + this.result;
-		wrapper.appendChild(wrapperDataNotification);
-
-
 		return wrapper;
 	},
 	getWeekDay: function (dateString) {
 		const date = new Date(dateString);
-		if (this.config.weekdayShort ){
+		if (this.config.weekdayShort) {
 			var weekday = this.translate("WEEKDAYS_SHORT");
 			return weekday[date.getDay()];
-		}
-		else {
+		} else {
 			var weekday = this.translate("WEEKDAYS_LONG");
 			return weekday[date.getDay()];
 		}
-		
-		/*var weekday = new Array(7);
-		weekday[6] = "Sunday";
-		weekday[0] = "Monday";
-		weekday[1] = "Tuesday";
-		weekday[2] = "Wednesday";
-		weekday[3] = "Thursday";
-		weekday[4] = "Friday";
-		weekday[5] = "Saturday";
-		return weekday[date.getDay()];*/
 	},
 	getMapOfDays: function (days) {
 		const mapOfDays = [];
@@ -215,9 +169,7 @@ Module.register("MMM-nutrislice-menu", {
 					}
 				}
 				dayObj["foodList"] = listOfFood;
-				//console.log("day added to mapOfDays", date);
 				mapOfDays.push(dayObj);
-				//mapOfDays[key] = listOfItems;
 				if (Object.keys(mapOfDays).length >= this.config.daysToShow) {
 					break;
 				}
@@ -236,38 +188,26 @@ Module.register("MMM-nutrislice-menu", {
 		];
 	},
 
-	// Load translations files
 	getTranslations: function () {
-		//FIXME: This can be load a one file javascript definition
 		return {
 			en: "translations/en.json",
 			es: "translations/es.json"
 		};
 	},
 
-	// socketNotificationReceived from helper
 	socketNotificationReceived: function (notification, payload) {
-		//console.log(notification);
-		if (notification === "NUTRISLICE_STARTED") {
-		}
-		else if (notification === "CURRENT_WEEK_MENU") {
-			// set dataNotification for current week
+		if (notification === "CURRENT_WEEK_MENU") {
 			this.dataNotification = payload;
-			console.log("start date 1", this.dataNotification.start_date);
 			this.retryCnt = 0;
-			this.sendSocketNotification("FETCH_NEXT_WEEK_MENU",this.menuProvider.getMenuData(false))
-		}
-		else if (notification === "NEXT_WEEK_MENU") {
-			// set dataNotification for next week
+			this.sendSocketNotification("FETCH_NEXT_WEEK_MENU", this.menuProvider.getMenuData(false));
+		} else if (notification === "NEXT_WEEK_MENU") {
 			this.dataNotification2 = payload;
-			console.log("start date 2", this.dataNotification2.start_date);
 			this.retryCnt = 0;
 			this.updateDom();
 			this.scheduleUpdate();
-		}
-		else if (notification === "STATUSERROR") {
-			console.log(payload);
-			this.retryCnt ++;
+		} else if (notification === "STATUSERROR") {
+			Log.error(this.name + ": fetch error – " + payload);
+			this.retryCnt++;
 			this.scheduleUpdate(this.config.retryDelay);
 		}
 	}
