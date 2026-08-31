@@ -119,7 +119,7 @@ Module.register("MMM-nutrislice-menu", {
 						.filter(item => item.food && item.food.name && !this.config.ignoredFoodItems.includes(item.food.name))
 						.map(item => ({
 							name: item.food.name.replace(/ *\([^)]*\) */g, "").trim(),
-							carbs: item.food.rounded_nutrition_info.g_carbs
+							carbs: item.food.rounded_nutrition_info?.g_carbs
 						}));
 					targetFood = { dayOfWeek: targetLabel, foodList };
 				}
@@ -205,7 +205,7 @@ Module.register("MMM-nutrislice-menu", {
 					if (item.food && item.food.name &&
 						!this.config.ignoredFoodItems.includes(item.food.name)) {
 						const sanitizedName = item.food.name.replace(/ *\([^)]*\) */g, "").trim();
-						listOfFood.push({ name: sanitizedName, carbs: item.food.rounded_nutrition_info.g_carbs });
+						listOfFood.push({ name: sanitizedName, carbs: item.food.rounded_nutrition_info?.g_carbs });
 					}
 				}
 				mapOfDays.push({ dayOfWeek: this.getWeekDay(day.date), foodList: listOfFood });
